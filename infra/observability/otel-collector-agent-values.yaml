@@ -1,0 +1,57 @@
+# OTel Collector em modo DaemonSet (1 por nó) — COLETA DE LOGS dos contêineres -> Loki.
+# É a segunda metade do "OTel Collector como peça central": o Collector central
+# (otel-collector-values.yaml) cuida das métricas; este agente lê os logs de /var/log/pods.
+#
+#   helm upgrade --install otel-collector-agent open-telemetry/opentelemetry-collector \
+#     -n observability -f otel-collector-agent-values.yaml
+#
+# Fluxo:  /var/log/pods/*  --filelog-->  k8sattributes  -->  transform  --otlphttp-->  Loki /otlp
+#
+# Labels resultantes no Loki (mapeamento padrão do Loki 3 p/ atributos de resource):
+#   k8s_namespace_name, k8s_container_name, k8s_deployment_name, service_name
+# O nome do pod NÃO vira label (alta cardinalidade): fica como structured metadata,
+# filtre com:  {k8s_namespace_name="toggle-apps"} | k8s_pod_name="auth-service-abc"
+mode: daemonset
+fullnameOverride: otel-collector-agent
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+presets:
+  logsCollection:
+    enabled: true                 # receiver filelog sobre /var/log/pods/*/*/*.log (parser CRI/Docker)
+    includeCollectorLogs: false   # não reingerir os logs do próprio agente (evita loop)
+  kubernetesAttributes:
+    enabled: true                 # processor k8sattributes (+ RBAC): namespace, deployment, pod, node
+
+resources:
+  requests: { cpu: 50m,  memory: 128Mi }
+  limits:   { cpu: 300m, memory: 384Mi }
+
+config:
+  processors:
+    # service.name = nome do contêiner (igual ao label `app` dos 5 serviços e ao
+    # service_name das métricas) -> mesmo filtro "Serviço" nos painéis de métricas e de logs.
+    transform/service_name:
+      error_mode: ignore
+      log_statements:
+        - context: resource
+          statements:
+            - set(attributes["service.name"], attributes["k8s.container.name"]) where attributes["service.name"] == nil
+
+  exporters:
+    otlphttp/loki:
+      endpoint: http://loki.logging.svc.cluster.local:3100/otlp
+      retry_on_failure:
+        enabled: true
+        max_elapsed_time: 120s
+
+  service:
+    pipelines:
+      logs:
+        receivers: [otlp]          # o preset acrescenta o filelog
+        processors: [memory_limiter, transform/service_name, batch]   # o preset prepõe o k8sattributes
+        exporters: [otlphttp/loki]
+      # este agente só trata logs
+      traces: null
+      metrics: null

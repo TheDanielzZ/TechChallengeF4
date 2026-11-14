@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: toggle-apps
+resources:
+- ../../../base/flag-service
+images:
+- name: acrtogglemasterprodhmzq.azurecr.io/flag-service
+  newName: acrtogglemasterprodhmzq.azurecr.io/flag-service
+  newTag: 25-47521db
+
+components:
+- ../../../components/otel-env

@@ -1,0 +1,94 @@
+# Helm values do OpenTelemetry Collector (chart open-telemetry/opentelemetry-collector).
+#
+#   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+#   helm upgrade --install otel-collector open-telemetry/opentelemetry-collector \
+#     --namespace observability --create-namespace -f otel-collector-values.yaml
+#
+# Papel neste pacote (métricas): recebe OTLP dos 5 microsserviços e expõe no formato
+# Prometheus na porta 8889, que o ServiceMonitor (servicemonitor-otel-collector.yaml) raspa.
+#
+# Onde encaixam as próximas etapas do Tech Challenge (sem mudar as aplicações):
+#   - Traces -> APM: adicionar o exporter do Datadog/New Relic e usar no pipeline `traces`.
+#   - Logs   -> Loki: adicionar o exporter `otlphttp/loki` (ou `loki`) e usar no pipeline `logs`.
+mode: deployment
+fullnameOverride: otel-collector   # => Service otel-collector.observability.svc:4317/4318
+replicaCount: 1
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+# License key do New Relic: Secret criado pelo IaC/scripts/02-k8s-secrets.sh a
+# partir do Key Vault [APP CI] (que recebe o valor da credencial do Jenkins).
+# optional: sem o Secret o Collector sobe mesmo assim — o export para o New Relic
+# falha, mas métricas no Prometheus e alertas continuam funcionando.
+extraEnvs:
+  - name: NEW_RELIC_LICENSE_KEY
+    valueFrom:
+      secretKeyRef:
+        name: newrelic-license
+        key: NEW_RELIC_LICENSE_KEY
+        optional: true
+
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits:   { cpu: 500m, memory: 512Mi }
+
+# Porta extra do Service para o exporter Prometheus (nome <= 15 caracteres).
+ports:
+  prom-exporter:
+    enabled: true
+    containerPort: 8889
+    servicePort: 8889
+    protocol: TCP
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+  processors:
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch: {}
+
+  exporters:
+
+    # Exporter para o New Relic via OTLP/gRPC. A license key vem da variável de
+    # ambiente NEW_RELIC_LICENSE_KEY (extraEnvs abaixo, Secret newrelic-license).
+    otlp/newrelic:
+      endpoint: "otlp.nr-data.net:4317"
+      headers:
+        api-key: "${env:NEW_RELIC_LICENSE_KEY}"
+
+    prometheus:
+      endpoint: 0.0.0.0:8889
+      # Atributos do resource (service.name, k8s.pod.name...) viram labels:
+      #   service_name, service_instance_id, k8s_pod_name, k8s_namespace_name ...
+      # As queries do dashboard e dos alertas dependem de `service_name`.
+      resource_to_telemetry_conversion:
+        enabled: true
+      metric_expiration: 5m   # séries de pods que sumiram expiram após 5 min
+
+    # Provisório: os serviços já enviam traces (evaluation-service). O chart traz um
+    # pipeline de traces padrão (otlp + jaeger + zipkin -> debug); o abaixo o deixa
+    # explícito e só com OTLP. O `debug` só registra a contagem no log do Collector;
+    # o exporter do New Relic entra no lugar dele na etapa de APM.
+    debug:
+      verbosity: basic
+
+  service:
+    pipelines:
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [prometheus, otlp/newrelic]
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [debug, otlp/newrelic]

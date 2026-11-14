@@ -1,0 +1,732 @@
+{
+  "name": "ToggleMaster - APM",
+  "description": "Traces OpenTelemetry dos 5 microsserviços (app -> OTel Collector -> New Relic).",
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "Visão geral",
+      "description": null,
+      "widgets": [
+        {
+          "title": "Requisições (spans de servidor)",
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 3,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT count(*) AS 'Requisições' FROM Span WHERE span.kind = 'server'"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Taxa de erro (%)",
+          "layout": {
+            "column": 4,
+            "row": 1,
+            "width": 3,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT percentage(count(*), WHERE otel.status_code = 'ERROR') AS 'Erro %' FROM Span WHERE span.kind = 'server'"
+              }
+            ],
+            "thresholds": [
+              {
+                "alertSeverity": "WARNING",
+                "value": 1
+              },
+              {
+                "alertSeverity": "CRITICAL",
+                "value": 5
+              }
+            ]
+          }
+        },
+        {
+          "title": "Latência p95 do /evaluate (ms)",
+          "layout": {
+            "column": 7,
+            "row": 1,
+            "width": 3,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT percentile(duration.ms, 95) AS 'p95 (ms)' FROM Span WHERE service.name = 'evaluation-service' AND span.kind = 'server'"
+              }
+            ],
+            "thresholds": [
+              {
+                "alertSeverity": "WARNING",
+                "value": 500
+              },
+              {
+                "alertSeverity": "CRITICAL",
+                "value": 1000
+              }
+            ]
+          }
+        },
+        {
+          "title": "Throughput (req/min)",
+          "layout": {
+            "column": 10,
+            "row": 1,
+            "width": 3,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT rate(count(*), 1 minute) AS 'req/min' FROM Span WHERE span.kind = 'server'"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Taxa de erro por serviço (%)",
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT percentage(count(*), WHERE otel.status_code = 'ERROR') FROM Span WHERE span.kind = 'server' FACET service.name TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Throughput por serviço (req/min)",
+          "layout": {
+            "column": 7,
+            "row": 4,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT rate(count(*), 1 minute) FROM Span WHERE span.kind = 'server' FACET service.name TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Latência p95 por serviço (ms)",
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT percentile(duration.ms, 95) FROM Span WHERE span.kind = 'server' FACET service.name TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Erros por serviço e rota",
+          "layout": {
+            "column": 7,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.table"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT count(*) AS 'Erros' FROM Span WHERE otel.status_code = 'ERROR' AND span.kind = 'server' FACET service.name AS 'Serviço', name AS 'Rota', error.group.message AS 'Erro' LIMIT 20"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Últimos spans com erro (copie o trace.id para abrir o trace)",
+          "layout": {
+            "column": 1,
+            "row": 10,
+            "width": 12,
+            "height": 4
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.table"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT trace.id, service.name, name, error.group.message, duration.ms, toggle.flag_name FROM Span WHERE otel.status_code = 'ERROR' AND span.kind = 'server' LIMIT 50"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dependências e fila",
+      "description": null,
+      "widgets": [
+        {
+          "title": "Latência p95 das dependências (ms)",
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT percentile(duration.ms, 95) FROM Span WHERE db.system IS NOT NULL FACET service.name, db.system TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Chamadas a bancos e cache",
+          "layout": {
+            "column": 7,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.bar"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT count(*) FROM Span WHERE db.system IS NOT NULL FACET service.name, db.system, db.operation"
+              }
+            ]
+          }
+        },
+        {
+          "title": "evaluation-service → flag/targeting (por resultado)",
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT sum(evaluation.upstream.requests) FROM Metric FACET upstream, outcome TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Latência p95 das chamadas do evaluation-service (ms)",
+          "layout": {
+            "column": 7,
+            "row": 4,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT percentile(duration.ms, 95) FROM Span WHERE service.name = 'evaluation-service' AND span.kind = 'client' FACET name TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Service Bus: publicados x consumidos",
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT count(*) FROM Span WHERE span.kind IN ('producer', 'consumer') FACET span.kind TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Idade do evento na fila (s)",
+          "layout": {
+            "column": 7,
+            "row": 7,
+            "width": 3,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT average(analytics.event.age) AS 'Idade média (s)' FROM Metric"
+              }
+            ],
+            "thresholds": [
+              {
+                "alertSeverity": "WARNING",
+                "value": 30
+              },
+              {
+                "alertSeverity": "CRITICAL",
+                "value": 120
+              }
+            ]
+          }
+        },
+        {
+          "title": "Consumo da fila com erro (%)",
+          "layout": {
+            "column": 10,
+            "row": 7,
+            "width": 3,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT percentage(count(*), WHERE otel.status_code = 'ERROR') AS 'Erro %' FROM Span WHERE span.kind = 'consumer'"
+              }
+            ],
+            "thresholds": [
+              {
+                "alertSeverity": "WARNING",
+                "value": 1
+              },
+              {
+                "alertSeverity": "CRITICAL",
+                "value": 5
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Negócio",
+      "description": null,
+      "widgets": [
+        {
+          "title": "Cache do evaluation (hit x miss)",
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.pie"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT sum(evaluation.cache.requests) FROM Metric FACET result"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Decisões das flags",
+          "layout": {
+            "column": 5,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.pie"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT sum(evaluation.decisions) FROM Metric FACET result"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Cache hit (%)",
+          "layout": {
+            "column": 9,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT filter(sum(evaluation.cache.requests), WHERE result = 'hit') / sum(evaluation.cache.requests) * 100 AS 'Cache hit %' FROM Metric"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Respostas HTTP por classe",
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.area"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT sum(http.server.requests) FROM Metric FACET status_class TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Validações de chave no auth-service",
+          "layout": {
+            "column": 7,
+            "row": 4,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT sum(auth.key.validations) FROM Metric FACET result TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Avaliações por flag",
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.bar"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT count(*) FROM Span WHERE service.name = 'evaluation-service' AND span.kind = 'server' FACET toggle.flag_name"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Mensagens processadas pelo analytics",
+          "layout": {
+            "column": 7,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.pie"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT sum(analytics.messages.processed) FROM Metric FACET outcome"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

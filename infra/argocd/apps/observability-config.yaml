@@ -1,0 +1,37 @@
+# Application do ArgoCD para a config de observabilidade (ServiceMonitor, PrometheusRule, dashboard).
+#
+# Publica ServiceMonitor, alertas, datasource do Loki e dashboard. Depende dos CRDs do
+# kube-prometheus-stack (sync-wave 0), por isso roda na wave 3, depois dos charts Helm.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: default
+  source:
+    repoURL: 'https://Oh20Tony@dev.azure.com/Oh20Tony/FIAP%20-%20TechChallenge/_git/TCF4%20-%20Observabilidade'
+    targetRevision: main
+    path: infra/observability
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+    # App-of-Apps não espera um filho ficar saudável antes do próximo, então a ordem
+    # das sync-waves não é garantida (ex.: CRDs do kube-prometheus-stack). Sem retry,
+    # o sync automático que falhar não é tentado de novo no mesmo commit.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

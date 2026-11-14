@@ -1,0 +1,24 @@
+# Faz o Prometheus (kube-prometheus-stack) raspar o exporter Prometheus do OTel Collector.
+# O label `release` precisa bater com o release Helm do kube-prometheus-stack
+# (ajuste se o seu release tiver outro nome).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: otel-collector-metrics
+  namespace: observability
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+      app.kubernetes.io/instance: otel-collector   # só o Collector central (o agente de logs não expõe métricas)
+  namespaceSelector:
+    matchNames:
+      - observability
+  endpoints:
+    - port: prom-exporter
+      path: /metrics
+      interval: 15s
+      # Preserva os labels vindos do OTel (job/instance = service.name/instance.id).
+      honorLabels: true

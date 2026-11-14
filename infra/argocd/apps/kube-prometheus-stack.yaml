@@ -1,0 +1,41 @@
+# Application ArgoCD (Helm multi-source): chart oficial + values versionados neste repo.
+# Requer ArgoCD >= 2.6 (campo `sources`).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: "65.1.1"     # versão FIXADA; atualize de forma deliberada
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/infra/observability/kube-prometheus-stack-values.yaml
+    - repoURL: 'https://Oh20Tony@dev.azure.com/Oh20Tony/FIAP%20-%20TechChallenge/_git/TCF4%20-%20Observabilidade'
+      targetRevision: main
+      ref: values
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    # App-of-Apps não espera um filho ficar saudável antes do próximo, então a ordem
+    # das sync-waves não é garantida (ex.: CRDs do kube-prometheus-stack). Sem retry,
+    # o sync automático que falhar não é tentado de novo no mesmo commit.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

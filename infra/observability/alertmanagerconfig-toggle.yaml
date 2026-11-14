@@ -1,0 +1,109 @@
+# =============================================================================
+# Alertmanager: para onde vão os alertas (requisito 4 do Tech Challenge)
+# =============================================================================
+#   critical de um serviço do ToggleMaster (label service_name) -> PagerDuty (incidente)
+#                                                                + Discord
+#                                                                + self-healer (rollout restart)
+#   demais alertas (warning, regras padrão do Kubernetes)       -> só Discord
+#   Watchdog / InfoInhibitor / info                             -> descartados
+#
+# É a configuração GLOBAL do Alertmanager (alertmanager.alertmanagerSpec.alertmanagerConfiguration
+# em kube-prometheus-stack-values.yaml). Por que um AlertmanagerConfig e não alertmanager.config
+# nos values: o Alertmanager 0.27 do chart não aceita webhook_url_file no Discord, e a URL do
+# webhook é segredo. Aqui o apiURL/routingKey apontam para chaves do Secret
+# monitoring/alertmanager-notificacoes (IaC/scripts/02-k8s-secrets.sh, a partir do Key Vault),
+# e o prometheus-operator injeta os valores na config gerada — nada sensível no Git.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: toggle-alertas
+  namespace: monitoring
+spec:
+  route:
+    receiver: discord
+    # Um aviso por alerta e serviço: 5 pods do mesmo serviço com erro = 1 mensagem.
+    groupBy: ['alertname', 'service_name']
+    groupWait: 30s
+    groupInterval: 2m
+    repeatInterval: 4h
+    routes:
+      - receiver: 'null'
+        matchers:
+          - { name: alertname, matchType: '=', value: Watchdog }
+      - receiver: 'null'
+        matchers:
+          - { name: alertname, matchType: '=', value: InfoInhibitor }
+      - receiver: 'null'
+        matchers:
+          - { name: severity, matchType: '=', value: info }
+      # Só os critical dos serviços acordam alguém e disparam a mitigação automática.
+      - receiver: incidente-toggle
+        matchers:
+          - { name: severity, matchType: '=', value: critical }
+          - { name: service_name, matchType: '=~', value: '.+' }
+
+  inhibitRules:
+    # Com um critical ativo, o warning do mesmo serviço (ex.: latência) é ruído.
+    - sourceMatch:
+        - { name: severity, matchType: '=', value: critical }
+      targetMatch:
+        - { name: severity, matchType: '=', value: warning }
+      equal: ['service_name']
+    # Regras padrão do kube-prometheus-stack.
+    - sourceMatch:
+        - { name: severity, matchType: '=', value: critical }
+      targetMatch:
+        - { name: severity, matchType: '=~', value: 'warning|info' }
+      equal: ['namespace', 'alertname']
+    - sourceMatch:
+        - { name: alertname, matchType: '=', value: InfoInhibitor }
+      targetMatch:
+        - { name: severity, matchType: '=', value: info }
+      equal: ['namespace']
+
+  receivers:
+    - name: 'null'
+
+    - name: discord
+      discordConfigs:
+        - &discord
+          apiURL:
+            name: alertmanager-notificacoes
+            key: discord-webhook-url
+          sendResolved: true
+          title: >-
+            {{ if eq .Status "firing" }}🔥 ALERTA{{ else }}✅ RESOLVIDO{{ end }}:
+            {{ .CommonLabels.alertname }}{{ with .CommonLabels.service_name }} — {{ . }}{{ end }}
+          message: |-
+            {{ range .Alerts -}}
+            **{{ .Annotations.summary }}**
+            {{ with .Annotations.description }}{{ . }}
+            {{ end -}}
+            • Severidade: `{{ .Labels.severity }}`{{ with .Labels.service_name }} · Serviço: `{{ . }}`{{ end }}
+            • Início: {{ .StartsAt.Format "02/01 15:04:05" }} UTC{{ if eq .Status "resolved" }} · Fim: {{ .EndsAt.Format "02/01 15:04:05" }} UTC{{ end }}
+            {{ with .Annotations.runbook }}• Runbook: `{{ . }}`{{ end }}
+            {{ end -}}
+
+    - name: incidente-toggle
+      discordConfigs:
+        - *discord
+      pagerdutyConfigs:
+        - routingKey:
+            name: alertmanager-notificacoes
+            key: pagerduty-routing-key
+          sendResolved: true   # o incidente fecha sozinho quando o alerta resolve
+          severity: critical
+          client: Alertmanager ToggleMaster
+          description: >-
+            {{ .CommonLabels.alertname }}{{ with .CommonLabels.service_name }} — {{ . }}{{ end }}:
+            {{ .CommonAnnotations.summary }}
+          details:
+            - { key: servico, value: '{{ .CommonLabels.service_name }}' }
+            - { key: alerta, value: '{{ .CommonLabels.alertname }}' }
+            - { key: descricao, value: '{{ .CommonAnnotations.description }}' }
+            - { key: runbook, value: '{{ .CommonAnnotations.runbook }}' }
+            - { key: mitigacao, value: 'self-healer: rollout restart automático de deployment/{{ .CommonLabels.deployment }}' }
+      # Self-healing: infra/self-healing (rollout restart do Deployment do label `deployment`).
+      webhookConfigs:
+        - url: http://self-healer.monitoring.svc.cluster.local:8080/alertmanager
+          sendResolved: false

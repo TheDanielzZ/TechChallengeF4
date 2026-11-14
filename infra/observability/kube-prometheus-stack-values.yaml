@@ -1,0 +1,71 @@
+# Values mínimos do kube-prometheus-stack (Prometheus + Grafana + Alertmanager + kube-state-metrics + node-exporter).
+prometheus:
+  prometheusSpec:
+    # Descobre ServiceMonitors/PrometheusRules de QUALQUER namespace, sem exigir o label `release`.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    retention: 3d
+    resources:
+      requests: { cpu: 200m, memory: 512Mi }
+
+grafana:
+  # Senha do admin vem do Secret monitoring/grafana-admin, criado pelo
+  # IaC/scripts/02-k8s-secrets.sh a partir do Key Vault (grafana-admin-password).
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+
+  # Publicado no mesmo App Gateway das APIs: http://<IP-do-gateway>/grafana/
+  # O AGIC troca o prefixo /grafana/ por / antes de mandar ao pod (backend-path-prefix),
+  # então o Grafana continua servindo na raiz (sondas /api/health inalteradas) e o
+  # root_url só diz a ele para gerar os links com /grafana/.
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s/grafana/"
+      serve_from_sub_path: false
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: azure/application-gateway
+      appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+    hosts: []
+    path: /grafana/
+    pathType: Prefix
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_dashboard
+    datasources:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_datasource
+
+# AKS: o control plane (controller-manager, scheduler e etcd) é gerenciado pela Azure e
+# não fica acessível de dentro do cluster. Com esses alvos ligados, o Prometheus marca
+# os três como "down" para sempre e as regras padrão disparam KubeControllerManagerDown,
+# KubeSchedulerDown e etcd* sem parar — ruído no dashboard e no PagerDuty (alert fatigue).
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+# kube-proxy: no AKS os pods não têm o label que o Service do chart procura e a porta de
+# métricas não fica exposta -> o alvo nunca aparece e KubeProxyDown dispara para sempre.
+kubeProxy:
+  enabled: false
+
+# Alertmanager: a configuração (rotas, Discord, PagerDuty e self-healer) fica no
+# AlertmanagerConfig monitoring/toggle-alertas (infra/observability/alertmanagerconfig-toggle.yaml),
+# usado como configuração global. O seletor fica restrito a um label que ninguém usa, para o
+# mesmo objeto não entrar de novo como sub-rota (o padrão {} seleciona TODOS os AlertmanagerConfig).
+alertmanager:
+  alertmanagerSpec:
+    alertmanagerConfiguration:
+      name: toggle-alertas
+    alertmanagerConfigSelector:
+      matchLabels:
+        togglemaster.io/alertmanager-subrota: "true"

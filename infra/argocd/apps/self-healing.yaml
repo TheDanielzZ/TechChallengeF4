@@ -1,0 +1,30 @@
+# Self-healer (Runbook Automation): recebe o webhook do Alertmanager e faz rollout restart
+# do Deployment do alerta critical. Manifestos em infra/self-healing/.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: self-healing
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: default
+  source:
+    repoURL: 'https://Oh20Tony@dev.azure.com/Oh20Tony/FIAP%20-%20TechChallenge/_git/TCF4%20-%20Observabilidade'
+    targetRevision: main
+    path: infra/self-healing
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

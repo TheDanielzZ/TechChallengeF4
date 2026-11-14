@@ -1,0 +1,41 @@
+# Application ArgoCD (Helm multi-source): chart oficial + values versionados neste repo.
+# Requer ArgoCD >= 2.6 (campo `sources`).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-collector
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  sources:
+    - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+      chart: opentelemetry-collector
+      targetRevision: "0.108.0"     # versão FIXADA; atualize de forma deliberada
+      helm:
+        releaseName: otel-collector
+        valueFiles:
+          - $values/infra/observability/otel-collector-values.yaml
+    - repoURL: 'https://Oh20Tony@dev.azure.com/Oh20Tony/FIAP%20-%20TechChallenge/_git/TCF4%20-%20Observabilidade'
+      targetRevision: main
+      ref: values
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    # App-of-Apps não espera um filho ficar saudável antes do próximo, então a ordem
+    # das sync-waves não é garantida (ex.: CRDs do kube-prometheus-stack). Sem retry,
+    # o sync automático que falhar não é tentado de novo no mesmo commit.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

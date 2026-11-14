@@ -1,0 +1,17 @@
+# Self-healer: Runbook Automation acionada pelo Alertmanager (requisito 4).
+# Alertmanager --webhook--> self-healer --PATCH (rollout restart)--> Deployment em toggle-apps
+# Aplicado pela Application infra/argocd/apps/self-healing.yaml.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - rbac.yaml
+  - deployment.yaml
+
+# O script vai num ConfigMap montado na imagem python:3.13-slim: sem build de imagem.
+# O sufixo de hash no nome faz o Deployment reiniciar quando o script muda.
+configMapGenerator:
+  - name: self-healer-script
+    namespace: monitoring
+    files:
+      - healer.py

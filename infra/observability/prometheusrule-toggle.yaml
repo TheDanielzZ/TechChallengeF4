@@ -1,0 +1,110 @@
+# Regras de gravação + alertas do ToggleMaster (kube-prometheus-stack / Prometheus Operator).
+# O label `release` precisa bater com o release Helm do kube-prometheus-stack.
+#
+# Os alertas carregam os labels `service_name` e `deployment`, para o Alertmanager
+# rotear (PagerDuty/OpsGenie, Slack) e para o webhook de self-healing saber qual
+# Deployment reiniciar.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: toggle-master
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: toggle-master.recording
+      interval: 30s
+      rules:
+        - record: toggle:http_requests:rate2m
+          expr: sum by (service_name) (rate(http_server_requests_total[2m]))
+        - record: toggle:http_5xx_ratio:rate2m
+          expr: |
+            sum by (service_name) (rate(http_server_requests_total{status_class="5xx"}[2m]))
+            /
+            sum by (service_name) (rate(http_server_requests_total[2m]))
+        - record: toggle:http_latency_p95_seconds:rate5m
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le, service_name) (rate(http_server_request_duration_seconds_bucket[5m])))
+
+    - name: toggle-master.alerts
+      rules:
+        # Exigência do Tech Challenge: taxa de erros HTTP 5xx > 5% (vale p/ auth-service e
+        # demais serviços). O piso de 0,05 req/s evita alertar por 1 erro em tráfego irrisório.
+        - alert: ToggleHighHttp5xxRate
+          expr: |
+            toggle:http_5xx_ratio:rate2m > 0.05
+            and
+            toggle:http_requests:rate2m > 0.05
+          for: 2m
+          labels:
+            severity: critical
+            deployment: "{{ $labels.service_name }}"
+          annotations:
+            summary: "{{ $labels.service_name }}: {{ $value | humanizePercentage }} de respostas 5xx"
+            description: >-
+              A taxa de erros HTTP 5xx de {{ $labels.service_name }} está acima de 5% há 2 minutos.
+            runbook: "kubectl -n toggle-apps rollout restart deployment/{{ $labels.service_name }}"
+
+        # O auth-service responde 401 (não 5xx) quando o PostgreSQL falha, então o alerta
+        # acima não o enxerga nesse cenário. Esta regra cobre o buraco.
+        - alert: AuthServiceDatabaseErrors
+          expr: sum(rate(auth_key_validations_total{result="db_error"}[2m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+            service_name: auth-service
+            deployment: auth-service
+          annotations:
+            summary: "auth-service não consegue consultar o banco (validações com db_error)"
+            description: >-
+              O /validate está falhando por erro de banco; os clientes recebem 401 em vez de 5xx.
+            runbook: "kubectl -n toggle-apps rollout restart deployment/auth-service"
+
+        - alert: ToggleHighLatencyP95
+          expr: toggle:http_latency_p95_seconds:rate5m > 1 and toggle:http_requests:rate2m > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            deployment: "{{ $labels.service_name }}"
+          annotations:
+            summary: "{{ $labels.service_name }}: p95 de latência {{ $value | humanizeDuration }}"
+            description: "O p95 de {{ $labels.service_name }} está acima de 1s há 5 minutos."
+
+        - alert: EvaluationUpstreamFailing
+          expr: |
+            sum by (upstream) (rate(evaluation_upstream_requests_total{outcome=~"error|http_error"}[5m]))
+            /
+            sum by (upstream) (rate(evaluation_upstream_requests_total[5m])) > 0.05
+          for: 3m
+          labels:
+            severity: critical
+            service_name: evaluation-service
+            deployment: evaluation-service
+          annotations:
+            summary: "evaluation-service: {{ $value | humanizePercentage }} de falhas ao chamar {{ $labels.upstream }}"
+
+        - alert: AnalyticsProcessingFailing
+          expr: |
+            sum(rate(analytics_messages_processed_total{outcome=~"cosmos_error|error"}[5m]))
+            /
+            sum(rate(analytics_messages_processed_total[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            service_name: analytics-service
+            deployment: analytics-service
+          annotations:
+            summary: "analytics-service: {{ $value | humanizePercentage }} das mensagens falhando"
+
+        - alert: AnalyticsQueueBacklog
+          expr: |
+            histogram_quantile(0.95, sum by (le) (rate(analytics_event_age_seconds_bucket[5m]))) > 300
+          for: 5m
+          labels:
+            severity: warning
+            service_name: analytics-service
+            deployment: analytics-service
+          annotations:
+            summary: "analytics-service processando eventos com mais de 5 min de atraso (p95)"

@@ -1,0 +1,26 @@
+# Configuração de observabilidade entregue via GitOps (Application: argocd-app.yaml).
+# Pré-requisito: kube-prometheus-stack instalado (CRDs ServiceMonitor/PrometheusRule)
+# e o Grafana com o sidecar de dashboards habilitado (label grafana_dashboard=1).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - servicemonitor-otel-collector.yaml
+  - prometheusrule-toggle.yaml
+  - datasource-loki.yaml
+  - alertmanagerconfig-toggle.yaml   # rotas e destinos dos alertas (Discord, PagerDuty, self-healer)
+
+generatorOptions:
+  disableNameSuffixHash: true   # o sidecar do Grafana recarrega pelo nome/label
+  labels:
+    grafana_dashboard: "1"
+
+configMapGenerator:
+  - name: toggle-master-dashboard
+    namespace: monitoring
+    files:
+      - toggle-master-overview.json=dashboards/toggle-master-overview.json
+  - name: toggle-master-infra-dashboard
+    namespace: monitoring
+    files:
+      - toggle-master-infra.json=dashboards/toggle-master-infra.json

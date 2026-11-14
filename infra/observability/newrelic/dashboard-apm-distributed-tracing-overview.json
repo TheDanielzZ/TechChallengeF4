@@ -1,0 +1,168 @@
+{
+  "name": "APM & Distributed Tracing Overview",
+  "description": "Dashboard de monitoramento de performance de aplicação (APM), erros e rastreamento distribuído baseado em Telemetria (Span).",
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "Observabilidade",
+      "description": null,
+      "widgets": [
+        {
+          "title": "Throughput (Requisições / min)",
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 1,
+            "width": 4
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT rate(count(*), 1 minute) AS 'RPM' FROM Span WHERE service.name = '{{serviceName}}' TIMESERIES"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Taxa de Erro (%)",
+          "layout": {
+            "column": 5,
+            "height": 3,
+            "row": 1,
+            "width": 4
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT percentage(count(*), WHERE error IS true) AS 'Error Rate (%)' FROM Span WHERE service.name = '{{serviceName}}' TIMESERIES"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Latência (p50, p95, p99)",
+          "layout": {
+            "column": 9,
+            "height": 3,
+            "row": 1,
+            "width": 4
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT percentile(duration, 50, 95, 99) FROM Span WHERE service.name = '{{serviceName}}' TIMESERIES"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Top 10 Spans / Operações mais Lentas",
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 4,
+            "width": 4
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.bar"
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT average(duration) AS 'Duração Média (s)', max(duration) AS 'Duração Max (s)', count(*) AS 'Total Chamadas' FROM Span WHERE service.name = '{{serviceName}}' FACET name SINCE 1 hour AGO LIMIT 10"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Últimos Erros Registrados",
+          "layout": {
+            "column": 5,
+            "height": 3,
+            "row": 4,
+            "width": 4
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.bar"
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT count(*) AS 'Ocorrências' FROM Span WHERE service.name = '{{serviceName}}' AND error IS true FACET statusMessage, name SINCE 1 day AGO LIMIT 10"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Traces Recentes (Distributed Spans)",
+          "layout": {
+            "column": 9,
+            "height": 3,
+            "row": 4,
+            "width": 4
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.table"
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  8684376
+                ],
+                "query": "SELECT timestamp, traceId, name, duration, http.statusCode FROM Span WHERE service.name = '{{serviceName}}' ORDER BY timestamp DESC LIMIT 20"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variables": [
+    {
+      "defaultValues": [],
+      "isMultiSelection": false,
+      "items": null,
+      "name": "serviceName",
+      "nrqlQuery": {
+        "accountIds": [
+          8684376
+        ],
+        "query": "SELECT uniques(service.name) FROM Span"
+      },
+      "replacementStrategy": "STRING",
+      "title": "Serviço",
+      "type": "NRQL"
+    }
+  ]
+}

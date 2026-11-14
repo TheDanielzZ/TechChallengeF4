@@ -1,0 +1,32 @@
+# App-of-Apps: a UNICA Application aplicada a mao (bootstrap).
+# Ela observa argocd/apps/ e cada arquivo la vira uma Application gerenciada pelo Argo.
+# A partir daqui, adicionar app = commitar um arquivo em argocd/apps/.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  # Nome mantido da Fase 3: reaplicar este arquivo num cluster que ja tem o
+  # tcf3-root migra o App-of-Apps para o repo TCF4 no lugar, sem dois roots
+  # disputando as mesmas Applications.
+  name: tcf3-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    # URL identica a do repo registrado no Argo: com o prefixo Oh20Tony@ e espacos em %20.
+    repoURL: 'https://Oh20Tony@dev.azure.com/Oh20Tony/FIAP%20-%20TechChallenge/_git/TCF4%20-%20Observabilidade'
+    targetRevision: main
+    path: infra/argocd/apps
+    directory:
+      recurse: true
+
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

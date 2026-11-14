@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: toggle-apps
+resources:
+- ../../../base/evaluation-service
+images:
+- name: acrtogglemasterprodhmzq.azurecr.io/evaluation-service
+  newName: acrtogglemasterprodhmzq.azurecr.io/evaluation-service
+  newTag: 25-47521db
+
+commonAnnotations:
+  demo-sync: entrega-video
+
+components:
+- ../../../components/otel-env

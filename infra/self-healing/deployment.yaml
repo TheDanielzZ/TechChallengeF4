@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: self-healer
+  namespace: monitoring
+  labels:
+    app: self-healer
+spec:
+  # Uma réplica só: o cooldown por serviço fica em memória.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: self-healer
+  template:
+    metadata:
+      labels:
+        app: self-healer
+    spec:
+      serviceAccountName: self-healer
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: self-healer
+          image: python:3.13-slim
+          command: ["python", "-u", "/app/healer.py"]
+          env:
+            - name: TARGET_NAMESPACE
+              value: toggle-apps
+            - name: ALLOWED_DEPLOYMENTS
+              value: auth-service,flag-service,targeting-service,evaluation-service,analytics-service
+            - name: COOLDOWN_SECONDS
+              value: "600"
+            - name: DISCORD_WEBHOOK_URL_FILE
+              value: /etc/self-healer/discord-webhook-url
+            - name: PYTHONDONTWRITEBYTECODE   # sistema de arquivos só leitura
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 96Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: script
+              mountPath: /app
+              readOnly: true
+            - name: discord
+              mountPath: /etc/self-healer
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: self-healer-script
+        # Mesmo Secret do Alertmanager (02-k8s-secrets.sh). optional: sem ele o
+        # self-healer sobe e reinicia normalmente, só não avisa no Discord.
+        - name: discord
+          secret:
+            secretName: alertmanager-notificacoes
+            optional: true
+            items:
+              - key: discord-webhook-url
+                path: discord-webhook-url
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: self-healer
+  namespace: monitoring
+  labels:
+    app: self-healer
+spec:
+  selector:
+    app: self-healer
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

@@ -1,0 +1,30 @@
+# Permissão mínima: ler e fazer patch (rollout restart) só nos Deployments de toggle-apps.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: self-healer
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: self-healer-rollout-restart
+  namespace: toggle-apps
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: self-healer-rollout-restart
+  namespace: toggle-apps
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: self-healer-rollout-restart
+subjects:
+  - kind: ServiceAccount
+    name: self-healer
+    namespace: monitoring
